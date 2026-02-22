@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getMemberContext } from "@/lib/auth-context";
 import { NextResponse } from "next/server";
 
 export async function PATCH(
@@ -8,13 +9,26 @@ export async function PATCH(
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: existing } = await supabase
+    .from("students")
+    .select("id, teacher_id")
+    .eq("id", id)
+    .eq("institute_id", ctx.instituteId)
+    .single();
+
+  if (!existing) {
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
+  }
+
+  if (ctx.role === "teacher" && existing.teacher_id !== ctx.memberId) {
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
   const body = await request.json();
@@ -48,13 +62,26 @@ export async function DELETE(
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: existing } = await supabase
+    .from("students")
+    .select("id, teacher_id")
+    .eq("id", id)
+    .eq("institute_id", ctx.instituteId)
+    .single();
+
+  if (!existing) {
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
+  }
+
+  if (ctx.role === "teacher" && existing.teacher_id !== ctx.memberId) {
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
   const { error } = await supabase.from("students").delete().eq("id", id);

@@ -99,7 +99,11 @@ export async function POST(request: Request) {
     let currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     let firstLedgerId: string | null = ledgerId;
 
-    while (remainingToAllocate > 0) {
+    let iterations = 0;
+    const MAX_ITERATIONS = 24;
+
+    while (remainingToAllocate > 0 && iterations < MAX_ITERATIONS) {
+      iterations++;
       const monthStr = currentMonth.toISOString().slice(0, 10);
       const { data: ledger } = await supabase
         .from("fee_ledger")
