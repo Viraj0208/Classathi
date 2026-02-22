@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getMemberContext } from "@/lib/auth-context";
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.trim().split(/\r?\n/);
@@ -23,23 +24,11 @@ function parseCSV(text: string): Record<string, string>[] {
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: institute } = await supabase
-    .from("institutes")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-
-  if (!institute) {
-    return NextResponse.json({ error: "Institute not found" }, { status: 404 });
   }
 
   const formData = await request.formData();
@@ -65,7 +54,8 @@ export async function POST(request: Request) {
       const fee = parseFloat(r.monthly_fee || r.monthlyfee || "0") || 0;
       const dueDay = Math.min(31, Math.max(1, parseInt(r.fee_due_day || r.feedueday || "1", 10) || 1));
       return {
-        institute_id: institute.id,
+        institute_id: ctx.instituteId,
+        teacher_id: ctx.memberId,
         student_name: r.student_name || r.studentname,
         parent_name: r.parent_name || r.parentname,
         parent_phone: phone,
@@ -77,6 +67,13 @@ export async function POST(request: Request) {
   if (students.length === 0) {
     return NextResponse.json(
       { error: "No valid rows. CSV needs: student_name, parent_name, parent_phone (required). Optional: monthly_fee, fee_due_day" },
+      { status: 400 }
+    );
+  }
+
+  if (students.length > 500) {
+    return NextResponse.json(
+      { error: "CSV cannot exceed 500 students per upload" },
       { status: 400 }
     );
   }
