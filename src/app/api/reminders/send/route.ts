@@ -3,30 +3,43 @@ import { NextResponse } from "next/server";
 import { createPaymentLink } from "@/lib/razorpay";
 import { ensureLedgerEntriesForCurrentMonth } from "@/lib/ledger";
 import { logActivity } from "@/lib/activity";
+import { getMemberContext } from "@/lib/auth-context";
 
 export async function POST() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data: institute } = await supabase
     .from("institutes")
     .select("id, name, phone")
-    .eq("owner_user_id", user.id)
+    .eq("id", ctx.instituteId)
     .single();
 
   if (!institute) {
     return NextResponse.json({ error: "Institute not found" }, { status: 404 });
   }
 
-  await ensureLedgerEntriesForCurrentMonth(supabase, institute.id);
+  let studentsQuery = supabase
+    .from("students")
+    .select("id, student_name, parent_name, parent_phone, monthly_fee")
+    .eq("institute_id", institute.id);
+  if (ctx.role === "teacher") {
+    studentsQuery = studentsQuery.eq("teacher_id", ctx.memberId);
+  }
+  const { data: studentsData } = await studentsQuery;
+  const students = studentsData ?? [];
+
+  const teacherStudentIds = ctx.role === "teacher"
+    ? students.map((s) => s.id)
+    : undefined;
+
+  await ensureLedgerEntriesForCurrentMonth(supabase, institute.id, teacherStudentIds);
 
   const { month, year } = {
     month: new Date().getMonth() + 1,
@@ -34,20 +47,30 @@ export async function POST() {
   };
   const monthStart = new Date(year, month - 1, 1).toISOString().slice(0, 10);
 
-  const { data: ledgerEntries } = await supabase
+  let ledgerQuery = supabase
     .from("fee_ledger")
     .select("id, student_id, amount_due, amount_paid, status")
     .eq("institute_id", institute.id)
     .eq("month", monthStart)
     .neq("status", "paid");
 
-  const unpaidLedgers = ledgerEntries ?? [];
-  const { data: students } = await supabase
-    .from("students")
-    .select("id, student_name, parent_name, parent_phone, monthly_fee")
-    .eq("institute_id", institute.id);
+  if (ctx.role === "teacher") {
+    const teacherStudentIds = students.map((s) => s.id);
+    if (teacherStudentIds.length === 0) {
+      return NextResponse.json({
+        sent: 0,
+        total: 0,
+        totalExpectedCollection: 0,
+        results: [],
+      });
+    }
+    ledgerQuery = ledgerQuery.in("student_id", teacherStudentIds);
+  }
 
-  const studentMap = new Map(students?.map((s) => [s.id, s]) ?? []);
+  const { data: ledgerEntries } = await ledgerQuery;
+  const unpaidLedgers = ledgerEntries ?? [];
+
+  const studentMap = new Map(students.map((s) => [s.id, s]));
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const results: { studentId: string; success: boolean; paymentLink?: string }[] = [];
@@ -80,6 +103,7 @@ export async function POST() {
 
         await supabase.from("payments").insert({
           institute_id: institute.id,
+          teacher_id: ctx.memberId,
           student_id: student.id,
           amount,
           payment_link_id: link.id,
@@ -104,6 +128,7 @@ export async function POST() {
     if (res.ok) {
       await supabase.from("whatsapp_logs").insert({
         institute_id: institute.id,
+        teacher_id: ctx.memberId,
         student_id: student.id,
         message_type: "fee",
         status: "sent",
