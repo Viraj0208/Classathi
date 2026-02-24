@@ -1,44 +1,56 @@
 import { createClient } from "@/lib/supabase/server";
 import { ensureLedgerEntriesForCurrentMonth } from "./ledger";
+import { getMemberContext } from "./auth-context";
 
 export async function getDashboardStats() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
+    return null;
+  }
 
-  if (authError || !user) return null;
+  const instituteId = ctx.instituteId;
 
-  const { data: institute } = await supabase
-    .from("institutes")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-
-  if (!institute) return null;
-
-  const instituteId = institute.id;
-
-  await ensureLedgerEntriesForCurrentMonth(supabase, instituteId);
-
-  const { data: students } = await supabase
+  let studentsQuery = supabase
     .from("students")
     .select("id")
     .eq("institute_id", instituteId);
+  if (ctx.role === "teacher") {
+    studentsQuery = studentsQuery.eq("teacher_id", ctx.memberId);
+  }
+  const { data: students } = await studentsQuery;
   const totalStudents = students?.length ?? 0;
+
+  const teacherStudentIds = ctx.role === "teacher"
+    ? students?.map((s) => s.id)
+    : undefined;
+
+  await ensureLedgerEntriesForCurrentMonth(
+    supabase,
+    instituteId,
+    teacherStudentIds,
+    ctx.role === "teacher" ? ctx.memberId : undefined
+  );
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     .toISOString()
     .slice(0, 10);
 
-  const { data: ledgerEntries } = await supabase
+  const { data: allLedgerEntries } = await supabase
     .from("fee_ledger")
-    .select("id, amount_due, amount_paid, status")
+    .select("id, student_id, amount_due, amount_paid, status")
     .eq("institute_id", instituteId)
     .eq("month", monthStart);
+
+  let ledgerEntries = allLedgerEntries ?? [];
+  if (ctx.role === "teacher") {
+    const studentIds = new Set(students?.map((s) => s.id) ?? []);
+    ledgerEntries = ledgerEntries.filter((e) => studentIds.has(e.student_id));
+  }
 
   let paidThisMonth = 0;
   let unpaidThisMonth = 0;

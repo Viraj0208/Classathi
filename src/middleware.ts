@@ -23,7 +23,33 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  const path = request.nextUrl.pathname;
+
+  if (path.startsWith("/admin")) {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
+
+  if (path.startsWith("/teacher-onboarding")) {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
+
+  // Redirect teachers from /dashboard to /teacher
+  if (user && path === "/dashboard") {
+    const { data: member } = await supabase
+      .from("institute_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    if (member?.role === "teacher") {
+      return NextResponse.redirect(new URL("/teacher", request.url));
+    }
+  }
 
   return response;
 }

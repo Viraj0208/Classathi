@@ -1,45 +1,48 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import Link from "next/link";
 import AddStudentModal from "./add-student-modal";
 import CsvUpload from "./csv-upload";
-import MarkPaidButton from "./mark-paid-button";
 import { Button } from "@/components/ui/button";
+import { getMemberContext } from "@/lib/auth-context";
+import { UserPlus } from "lucide-react";
+import StudentsTable from "./students-table";
 
 export default async function StudentsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
+    return null;
+  }
 
-  const { data: institute } = await supabase
-    .from("institutes")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-  if (!institute) return null;
-
-  const { data: students } = await supabase
+  let query = supabase
     .from("students")
     .select("*")
-    .eq("institute_id", institute.id)
+    .eq("institute_id", ctx.instituteId)
     .order("created_at", { ascending: false });
+  if (ctx.role === "teacher") {
+    query = query.eq("teacher_id", ctx.memberId);
+  }
+  const { data: students } = await query;
 
-  const formatAmount = (n: number) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(n ?? 0);
+  // Fetch student_teachers assignments with teacher names
+  const { data: studentTeachers } = await supabase
+    .from("student_teachers")
+    .select("id, student_id, teacher_id, monthly_fee, fee_due_day")
+    .eq("institute_id", ctx.instituteId);
+
+  // Fetch members (teachers) for assignment dropdown (owners only)
+  let members: { id: string; name: string; subject: string | null }[] = [];
+  if (ctx.role === "owner") {
+    const { data: membersData } = await supabase
+      .from("institute_members")
+      .select("id, name, subject")
+      .eq("institute_id", ctx.instituteId)
+      .order("name");
+    members = membersData ?? [];
+  }
 
   return (
     <div className="space-y-6">
@@ -55,7 +58,7 @@ export default async function StudentsPage() {
           <CsvUpload />
           <Link href="/api/students/template" download="students_template.csv">
             <Button variant="outline" size="lg">
-              Download Excel Template
+              Download Template
             </Button>
           </Link>
         </div>
@@ -67,42 +70,26 @@ export default async function StudentsPage() {
         </CardHeader>
         <CardContent>
           {!students?.length ? (
-            <p className="py-8 text-center text-muted-foreground">
-              No students yet. Add one or upload CSV.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Parent</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Fee</TableHead>
-                    <TableHead>Due day</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.student_name}</TableCell>
-                      <TableCell>{s.parent_name}</TableCell>
-                      <TableCell>{s.parent_phone}</TableCell>
-                      <TableCell>{formatAmount(Number(s.monthly_fee))}</TableCell>
-                      <TableCell>{s.fee_due_day}</TableCell>
-                      <TableCell className="text-right">
-                        <MarkPaidButton
-                          studentId={s.id}
-                          studentName={s.student_name}
-                          monthlyFee={Number(s.monthly_fee)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-light dark:bg-primary/10 mb-4">
+                <UserPlus className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-semibold">No students yet</h3>
+              <p className="mt-1 text-sm text-muted-foreground max-w-sm">
+                Add your first student or upload a CSV file to get started.
+              </p>
+              <div className="mt-4">
+                <AddStudentModal />
+              </div>
             </div>
+          ) : (
+            <StudentsTable
+              students={students}
+              studentTeachers={studentTeachers ?? []}
+              members={members}
+              role={ctx.role}
+              currentMemberId={ctx.memberId}
+            />
           )}
         </CardContent>
       </Card>

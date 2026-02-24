@@ -39,7 +39,12 @@ export async function POST() {
     ? students.map((s) => s.id)
     : undefined;
 
-  await ensureLedgerEntriesForCurrentMonth(supabase, institute.id, teacherStudentIds);
+  await ensureLedgerEntriesForCurrentMonth(
+    supabase,
+    institute.id,
+    teacherStudentIds,
+    ctx.role === "teacher" ? ctx.memberId : undefined
+  );
 
   const { month, year } = {
     month: new Date().getMonth() + 1,

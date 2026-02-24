@@ -1,33 +1,26 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getMemberContext } from "@/lib/auth-context";
 
 export async function GET() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: institute } = await supabase
-    .from("institutes")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-
-  if (!institute) {
-    return NextResponse.json({ error: "Institute not found" }, { status: 404 });
-  }
-
-  const { data, error } = await supabase
+  let query = supabase
     .from("students")
     .select("*")
-    .eq("institute_id", institute.id)
+    .eq("institute_id", ctx.instituteId)
     .order("created_at", { ascending: false });
+  if (ctx.role === "teacher") {
+    query = query.eq("teacher_id", ctx.memberId);
+  }
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,23 +32,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: institute } = await supabase
-    .from("institutes")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-
-  if (!institute) {
-    return NextResponse.json({ error: "Institute not found" }, { status: 404 });
   }
 
   const body = await request.json();
@@ -79,7 +60,8 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("students")
     .insert({
-      institute_id: institute.id,
+      institute_id: ctx.instituteId,
+      teacher_id: ctx.memberId,
       student_name,
       parent_name,
       parent_phone: String(parent_phone).replace(/\D/g, "").slice(-10),
@@ -92,6 +74,15 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Auto-create student_teachers row for the creating teacher
+  await supabase.from("student_teachers").insert({
+    student_id: data.id,
+    teacher_id: ctx.memberId,
+    institute_id: ctx.instituteId,
+    monthly_fee: Number(monthly_fee) || 0,
+    fee_due_day: dueDay,
+  });
 
   return NextResponse.json(data);
 }
