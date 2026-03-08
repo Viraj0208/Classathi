@@ -11,13 +11,13 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { data: institute } = await supabase
-    .from("institutes")
+  const { data: member } = await supabase
+    .from("institute_members")
     .select("id")
-    .eq("owner_user_id", user.id)
+    .eq("user_id", user.id)
     .single();
 
-  if (!institute) {
+  if (!member) {
     redirect("/onboarding");
   }
 

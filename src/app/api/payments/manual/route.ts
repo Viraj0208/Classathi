@@ -5,27 +5,16 @@ import {
   computeLedgerStatus,
 } from "@/lib/ledger";
 import { logActivity } from "@/lib/activity";
+import { getMemberContext } from "@/lib/auth-context";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: institute } = await supabase
-    .from("institutes")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-
-  if (!institute) {
-    return NextResponse.json({ error: "Institute not found" }, { status: 404 });
   }
 
   const body = await request.json();
@@ -55,18 +44,22 @@ export async function POST(request: Request) {
 
   const { data: student } = await supabase
     .from("students")
-    .select("id, student_name, monthly_fee, institute_id")
+    .select("id, student_name, monthly_fee, institute_id, teacher_id")
     .eq("id", student_id)
-    .eq("institute_id", institute.id)
+    .eq("institute_id", ctx.instituteId)
     .single();
 
-  if (!student || student.institute_id !== institute.id) {
+  if (!student) {
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
+  }
+
+  if (ctx.role === "teacher" && student.teacher_id !== ctx.memberId) {
     return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
   const ledger = await getOrCreateCurrentMonthLedger(
     supabase,
-    institute.id,
+    ctx.instituteId,
     student_id,
     Number(student.monthly_fee) || 0
   );
@@ -91,7 +84,8 @@ export async function POST(request: Request) {
   const { data: paymentRecord, error: payError } = await supabase
     .from("payments")
     .insert({
-      institute_id: institute.id,
+      institute_id: ctx.instituteId,
+      teacher_id: ctx.memberId,
       student_id: student_id,
       amount,
       payment_link_id: null,
@@ -111,7 +105,7 @@ export async function POST(request: Request) {
   }
 
   await logActivity(supabase, {
-    instituteId: institute.id,
+    instituteId: ctx.instituteId,
     type: "manual_payment",
     studentId: student_id,
     message: `₹${Math.round(amount)} received from ${student.student_name} (${payment_method})`,

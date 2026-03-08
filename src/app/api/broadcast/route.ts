@@ -1,34 +1,29 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { logActivity } from "@/lib/activity";
+import { getMemberContext } from "@/lib/auth-context";
+import { sendTemplate, formatPhoneForWhatsApp } from "@/lib/whatsapp";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-const TEMPLATES: Record<string, (institute: string, student: string) => string> = {
-  homework: (inst, student) =>
-    `[${inst}] Homework reminder for ${student}: Please complete today's homework and bring it tomorrow.`,
-  absent: (inst, student) =>
-    `[${inst}] Absence alert: ${student} was absent today. Please ensure they catch up on the missed lessons.`,
-  test: (inst, student) =>
-    `[${inst}] Test announcement for ${student}: A test has been scheduled. Please ensure your child is prepared.`,
+const TYPE_TO_TEMPLATE: Record<string, string> = {
+  homework: "homework_message",
+  test: "test_notification",
+  absent: "absent_notification",
 };
 
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let ctx;
+  try {
+    ctx = await getMemberContext(supabase);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data: institute } = await supabase
     .from("institutes")
     .select("id, name")
-    .eq("owner_user_id", user.id)
+    .eq("id", ctx.instituteId)
     .single();
 
   if (!institute) {
@@ -36,7 +31,13 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { type, student_ids } = body as { type: "homework" | "absent" | "test"; student_ids: string[] };
+  const { type, student_ids, subject, message, date } = body as {
+    type: "homework" | "absent" | "test";
+    student_ids: string[];
+    subject?: string;
+    message?: string;
+    date?: string;
+  };
 
   if (!type || !["homework", "absent", "test"].includes(type)) {
     return NextResponse.json({ error: "Invalid type" }, { status: 400 });
@@ -47,41 +48,60 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No students selected" }, { status: 400 });
   }
 
-  const { data: students } = await supabase
+  let studentsQuery = supabase
     .from("students")
-    .select("id, student_name, parent_phone")
+    .select("id, student_name, parent_name, parent_phone")
     .eq("institute_id", institute.id)
     .in("id", ids);
+  if (ctx.role === "teacher") {
+    studentsQuery = studentsQuery.eq("teacher_id", ctx.memberId);
+  }
+  const { data: students } = await studentsQuery;
 
-  const template = TEMPLATES[type];
+  const templateName = TYPE_TO_TEMPLATE[type] ?? type;
+  const today = date ?? new Date().toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   let sent = 0;
   const typeLabel = type === "homework" ? "Homework" : type === "absent" ? "Absence alert" : "Test announcement";
 
   for (const s of students ?? []) {
-    const message = template(institute.name, s.student_name);
-    await fetch(`${APP_URL}/api/whatsapp/mock`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        institute_name: institute.name,
-        student_name: s.student_name,
-        parent_phone: s.parent_phone,
-        message,
-        message_type: type,
-      }),
-    });
+    const phone = formatPhoneForWhatsApp(s.parent_phone ?? "");
+    const parentName = s.parent_name ?? "Parent";
+
+    let params: string[];
+    if (type === "homework") {
+      // homework_message: parent_name, subject, date, homework_text
+      params = [parentName, subject ?? institute.name, today, message ?? "Please check with your child."];
+    } else if (type === "test") {
+      // test_notification: parent_name, subject, date, test_details
+      params = [parentName, subject ?? institute.name, today, message ?? "Please ensure your child is prepared."];
+    } else {
+      // absent_notification: parent_name, student_name, batch_name, date
+      params = [parentName, s.student_name, institute.name, today];
+    }
+
+    const waResult = await sendTemplate(phone, templateName, params);
+
     await supabase.from("whatsapp_logs").insert({
       institute_id: institute.id,
+      teacher_id: ctx.memberId,
       student_id: s.id,
       message_type: type,
-      status: "sent",
+      status: waResult.success ? "sent" : "failed",
+      wamid: waResult.messageId ?? null,
+      template_name: templateName,
     });
-    sent++;
+
+    if (waResult.success) sent++;
   }
 
   if (sent > 0) {
     await logActivity(supabase, {
-      instituteId: institute.id,
+      instituteId: ctx.instituteId,
       type: "broadcast_sent",
       studentId: null,
       message: `${typeLabel} sent to ${sent} student${sent === 1 ? "" : "s"}`,

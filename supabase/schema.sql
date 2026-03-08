@@ -11,14 +11,31 @@ CREATE TABLE institutes (
   owner_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   phone TEXT NOT NULL,
   city TEXT NOT NULL,
+  plan TEXT NOT NULL DEFAULT 'pro' CHECK (plan IN ('pro', 'enterprise')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(owner_user_id)
 );
+
+-- institute_members table
+CREATE TABLE institute_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('owner', 'teacher')),
+  name TEXT NOT NULL,
+  subject TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(institute_id, user_id)
+);
+
+CREATE INDEX idx_members_institute_id ON institute_members(institute_id);
+CREATE INDEX idx_members_user_id ON institute_members(user_id);
 
 -- students table
 CREATE TABLE students (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
+  teacher_id UUID REFERENCES institute_members(id) ON DELETE SET NULL,
   student_name TEXT NOT NULL,
   parent_name TEXT NOT NULL,
   parent_phone TEXT NOT NULL,
@@ -31,6 +48,7 @@ CREATE TABLE students (
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
+  teacher_id UUID REFERENCES institute_members(id) ON DELETE SET NULL,
   student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   amount DECIMAL(10, 2) NOT NULL,
   payment_link_id TEXT,
@@ -43,6 +61,7 @@ CREATE TABLE payments (
 CREATE TABLE whatsapp_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
+  teacher_id UUID REFERENCES institute_members(id) ON DELETE SET NULL,
   student_id UUID REFERENCES students(id) ON DELETE SET NULL,
   message_type TEXT NOT NULL CHECK (message_type IN ('fee', 'homework', 'absent', 'test')),
   status TEXT NOT NULL DEFAULT 'sent',
@@ -62,6 +81,7 @@ ALTER TABLE institutes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE institute_members ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies: Users can only access their own institute data
 
@@ -71,34 +91,123 @@ CREATE POLICY "Owners can manage own institute"
   USING (auth.uid() = owner_user_id)
   WITH CHECK (auth.uid() = owner_user_id);
 
--- students: owner can manage students of their institute
-CREATE POLICY "Owners can manage students"
+-- institute_members: owners can manage all members, teachers can read
+CREATE POLICY "Owners can manage members"
+  ON institute_members FOR ALL
+  USING (
+    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+  )
+  WITH CHECK (
+    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+  );
+
+CREATE POLICY "Teachers can read members"
+  ON institute_members FOR SELECT
+  USING (
+    user_id = auth.uid()
+    OR institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+  );
+
+-- students: owner or teacher (where teacher_id matches)
+DROP POLICY IF EXISTS "Owners can manage students" ON students;
+
+CREATE POLICY "Members can access students"
   ON students FOR ALL
   USING (
-    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+    institute_id IN (
+      SELECT institute_id FROM institute_members WHERE user_id = auth.uid()
+    )
+    AND (
+      institute_id IN (
+        SELECT id FROM institutes WHERE owner_user_id = auth.uid()
+      )
+      OR
+      teacher_id IN (
+        SELECT id FROM institute_members WHERE user_id = auth.uid()
+      )
+    )
   )
   WITH CHECK (
-    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+    institute_id IN (
+      SELECT institute_id FROM institute_members WHERE user_id = auth.uid()
+    )
+    AND (
+      institute_id IN (
+        SELECT id FROM institutes WHERE owner_user_id = auth.uid()
+      )
+      OR
+      teacher_id IN (
+        SELECT id FROM institute_members WHERE user_id = auth.uid()
+      )
+    )
   );
 
--- payments: owner can manage payments of their institute
-CREATE POLICY "Owners can manage payments"
+-- payments: owner or teacher (where teacher_id matches)
+DROP POLICY IF EXISTS "Owners can manage payments" ON payments;
+
+CREATE POLICY "Members can access payments"
   ON payments FOR ALL
   USING (
-    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+    institute_id IN (
+      SELECT institute_id FROM institute_members WHERE user_id = auth.uid()
+    )
+    AND (
+      institute_id IN (
+        SELECT id FROM institutes WHERE owner_user_id = auth.uid()
+      )
+      OR
+      teacher_id IN (
+        SELECT id FROM institute_members WHERE user_id = auth.uid()
+      )
+    )
   )
   WITH CHECK (
-    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+    institute_id IN (
+      SELECT institute_id FROM institute_members WHERE user_id = auth.uid()
+    )
+    AND (
+      institute_id IN (
+        SELECT id FROM institutes WHERE owner_user_id = auth.uid()
+      )
+      OR
+      teacher_id IN (
+        SELECT id FROM institute_members WHERE user_id = auth.uid()
+      )
+    )
   );
 
--- whatsapp_logs: owner can manage logs of their institute
-CREATE POLICY "Owners can manage whatsapp_logs"
+-- whatsapp_logs: owner or teacher (where teacher_id matches)
+DROP POLICY IF EXISTS "Owners can manage whatsapp_logs" ON whatsapp_logs;
+
+CREATE POLICY "Members can access whatsapp_logs"
   ON whatsapp_logs FOR ALL
   USING (
-    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+    institute_id IN (
+      SELECT institute_id FROM institute_members WHERE user_id = auth.uid()
+    )
+    AND (
+      institute_id IN (
+        SELECT id FROM institutes WHERE owner_user_id = auth.uid()
+      )
+      OR
+      teacher_id IN (
+        SELECT id FROM institute_members WHERE user_id = auth.uid()
+      )
+    )
   )
   WITH CHECK (
-    institute_id IN (SELECT id FROM institutes WHERE owner_user_id = auth.uid())
+    institute_id IN (
+      SELECT institute_id FROM institute_members WHERE user_id = auth.uid()
+    )
+    AND (
+      institute_id IN (
+        SELECT id FROM institutes WHERE owner_user_id = auth.uid()
+      )
+      OR
+      teacher_id IN (
+        SELECT id FROM institute_members WHERE user_id = auth.uid()
+      )
+    )
   );
 
 -- Enable RLS for service role (bypass) - webhooks need to insert

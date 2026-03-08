@@ -54,7 +54,10 @@ export default async function StudentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <AddStudentModal />
+          <AddStudentModal
+            teachers={members}
+            isOwner={ctx.role === "owner"}
+          />
           <CsvUpload />
           <Link href="/api/students/template" download="students_template.csv">
             <Button variant="outline" size="lg">
@@ -79,7 +82,10 @@ export default async function StudentsPage() {
                 Add your first student or upload a CSV file to get started.
               </p>
               <div className="mt-4">
-                <AddStudentModal />
+                <AddStudentModal
+                  teachers={members}
+                  isOwner={ctx.role === "owner"}
+                />
               </div>
             </div>
           ) : (

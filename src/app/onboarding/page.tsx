@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 
 export default function OnboardingPage() {
   const [name, setName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,7 +23,7 @@ export default function OnboardingPage() {
       const res = await fetch("/api/institutes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, city }),
+        body: JSON.stringify({ name, ownerName, phone, city }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -37,17 +38,43 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-green-50 to-background">
-      <div className="w-full max-w-sm space-y-8">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-primary-light to-background dark:from-background dark:to-background">
+      <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-primary">Set up your institute</h1>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white text-2xl font-bold">
+            C
+          </div>
+          <h1 className="text-3xl font-bold text-primary">
+            Set up your institute
+          </h1>
           <p className="mt-2 text-muted-foreground">
-            Just 3 details to get started
+            A few details to get started
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-6 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="rounded-2xl border bg-card shadow-md overflow-hidden">
+          {/* Blue gradient header */}
+          <div className="bg-gradient-to-r from-primary to-primary-dark px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4].map((step) => (
+                  <div key={step} className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-semibold text-white">
+                      {step}
+                    </div>
+                    {step < 4 && (
+                      <div className="h-0.5 w-4 bg-white/20 rounded" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-white/80">
+              Fill in your institute details
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Institute name</Label>
               <Input
@@ -55,6 +82,16 @@ export default function OnboardingPage() {
                 placeholder="e.g. ABC Tuition Centre"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ownerName">Your name</Label>
+              <Input
+                id="ownerName"
+                placeholder="e.g. Ramesh Kumar"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
                 required
               />
             </div>
@@ -83,7 +120,12 @@ export default function OnboardingPage() {
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+            >
               {loading ? "Creating..." : "Create institute"}
             </Button>
           </form>
