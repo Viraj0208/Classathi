@@ -147,7 +147,7 @@ export async function sendTemplate(
   paramValues: string[]
 ): Promise<WhatsAppResult> {
   const components = buildTemplateComponents(templateName, paramValues);
-  // All ClassSaathi templates use English
+  // All Classaathi templates use English
   return sendWhatsAppTemplate(to, templateName, "en", components);
 }
 

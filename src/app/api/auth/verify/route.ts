@@ -2,20 +2,21 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { email, password } = await request.json();
+  const { email, otp } = await request.json();
 
-  if (!email || !password) {
+  if (!email || !otp) {
     return NextResponse.json(
-      { error: "Email and password are required" },
+      { error: "Email and OTP are required" },
       { status: 400 }
     );
   }
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { error } = await supabase.auth.verifyOtp({
     email,
-    password,
+    token: otp,
+    type: "email",
   });
 
   if (error) {

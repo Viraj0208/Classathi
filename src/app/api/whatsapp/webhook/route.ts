@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 // ── GET: Meta webhook verification ──────────────────────────────────────
 export async function GET(request: Request) {
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 // ── POST: Delivery status updates & incoming messages ───────────────────
 
 type StatusUpdate = {
-  id: string;                              // wamid
+  id: string;
   status: "sent" | "delivered" | "read" | "failed";
   timestamp: string;
   errors?: { code: number; title: string }[];
@@ -49,13 +49,45 @@ type WebhookBody = {
 export async function POST(request: Request) {
   const rawBody = await request.text();
 
-  // Optional: verify X-Hub-Signature-256
+  // Verify X-Hub-Signature-256 — mandatory in live mode, optional in mock
   const appSecret = process.env.WA_APP_SECRET;
+  const whatsappMode = process.env.WHATSAPP_MODE || "mock";
+
+  if (!appSecret && whatsappMode === "live") {
+    console.error("WA_APP_SECRET must be configured when WHATSAPP_MODE=live");
+    return NextResponse.json(
+      { error: "Webhook not configured" },
+      { status: 500 }
+    );
+  }
+
   if (appSecret) {
     const signature = request.headers.get("x-hub-signature-256") ?? "";
-    const expected = `sha256=${createHmac("sha256", appSecret).update(rawBody).digest("hex")}`;
-    if (signature !== expected) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
+    const expectedHex = createHmac("sha256", appSecret)
+      .update(rawBody)
+      .digest("hex");
+    const receivedHex = signature.startsWith("sha256=")
+      ? signature.slice(7)
+      : "";
+
+    // Timing-safe comparison prevents timing side-channel attacks
+    try {
+      const isValid = timingSafeEqual(
+        Buffer.from(expectedHex, "utf8"),
+        Buffer.from(receivedHex, "utf8")
+      );
+      if (!isValid) {
+        return NextResponse.json(
+          { error: "Invalid signature" },
+          { status: 403 }
+        );
+      }
+    } catch {
+      // Buffers have different lengths → signature is invalid
+      return NextResponse.json(
+        { error: "Invalid signature" },
+        { status: 403 }
+      );
     }
   }
 
@@ -66,7 +98,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // Process in the background-ish manner (we still respond 200 immediately-ish)
   const supabase = createAdminClient();
 
   for (const entry of payload.entry ?? []) {
@@ -75,12 +106,14 @@ export async function POST(request: Request) {
       if (!statuses) continue;
 
       for (const s of statuses) {
-        // Map WhatsApp status to our stored status
         const newStatus =
-          s.status === "delivered" ? "delivered" :
-          s.status === "read" ? "read" :
-          s.status === "failed" ? "failed" :
-          null;
+          s.status === "delivered"
+            ? "delivered"
+            : s.status === "read"
+              ? "read"
+              : s.status === "failed"
+                ? "failed"
+                : null;
 
         if (!newStatus) continue;
 

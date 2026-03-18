@@ -27,9 +27,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen">
       <DashboardNav role={member.role} />
-      <main className="flex-1 container px-4 py-6 pb-24">{children}</main>
+      <main className="md:ml-60 min-h-screen px-4 py-6 pb-24 md:px-8 md:py-8">
+        {children}
+      </main>
     </div>
   );
 }

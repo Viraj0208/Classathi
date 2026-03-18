@@ -1,9 +1,9 @@
-# Classathi - Project Structure
+# Classaathi - Project Structure
 
 ## Folder Structure
 
 ```
-Classathi/
+Classaathi/
 ├── src/
 │   ├── app/
 │   │   ├── (dashboard)/           # Authenticated routes

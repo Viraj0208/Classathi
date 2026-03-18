@@ -1,4 +1,4 @@
-# Classathi Production Upgrade Summary
+# Classaathi Production Upgrade Summary
 
 ## PART 1 — Fee Ledger System
 

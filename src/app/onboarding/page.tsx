@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,20 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("signup_data");
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.instituteName) setName(data.instituteName);
+        if (data.name) setOwnerName(data.name);
+        sessionStorage.removeItem("signup_data");
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+export default function SignupPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [instituteName, setInstituteName] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,17 +23,22 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, name }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Invalid email or password");
+        setError(data.error || "Something went wrong");
         return;
       }
-      router.push("/dashboard");
+      // Store signup data for onboarding pre-fill
+      sessionStorage.setItem(
+        "signup_data",
+        JSON.stringify({ name, instituteName })
+      );
+      router.push("/onboarding");
       router.refresh();
     } finally {
       setLoading(false);
@@ -46,7 +53,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+          redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
         },
       });
       if (error) {
@@ -77,8 +84,34 @@ export default function LoginPage() {
           </div>
           <h1 className="text-4xl font-bold">Classaathi</h1>
           <p className="text-lg text-white/80">
-            Simplifying coaching, one institute at a time
+            Start managing your coaching institute in minutes
           </p>
+          <div className="mt-8 space-y-3 text-left text-white/70 text-sm">
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 text-white/90 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Unlimited students & batch management</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 text-white/90 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Fee tracking & WhatsApp reminders</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 text-white/90 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Attendance & performance analytics</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 text-white/90 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>14-day free trial — no credit card needed</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -92,20 +125,32 @@ export default function LoginPage() {
             </div>
             <h1 className="text-3xl font-bold text-primary">Classaathi</h1>
             <p className="mt-2 text-muted-foreground">
-              Simplifying coaching, one institute at a time
+              Start managing your coaching institute in minutes
             </p>
           </div>
 
           {/* Desktop form heading */}
           <div className="hidden md:block text-center">
-            <h2 className="text-2xl font-bold">Welcome back</h2>
+            <h2 className="text-2xl font-bold">Create your account</h2>
             <p className="mt-2 text-muted-foreground">
-              Sign in to your account
+              Start your free trial — no credit card needed
             </p>
           </div>
 
           <div className="rounded-2xl border bg-card p-6 shadow-md">
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Your name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="e.g. Ramesh Kumar"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -115,7 +160,6 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  autoFocus
                 />
               </div>
               <div className="space-y-2">
@@ -123,9 +167,21 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder="Min 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="instituteName">Institute name</Label>
+                <Input
+                  id="instituteName"
+                  type="text"
+                  placeholder="e.g. ABC Tuition Centre"
+                  value={instituteName}
+                  onChange={(e) => setInstituteName(e.target.value)}
                   required
                 />
               </div>
@@ -138,7 +194,7 @@ export default function LoginPage() {
                 size="lg"
                 disabled={loading}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? "Creating account..." : "Get Started"}
               </Button>
 
               <div className="relative my-2">
@@ -184,9 +240,9 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="font-medium text-primary hover:underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              Log in
             </Link>
           </p>
         </div>

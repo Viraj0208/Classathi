@@ -65,10 +65,18 @@ export function verifyWebhookSignature(
   signature: string,
   secret: string
 ): boolean {
-  const crypto = require("crypto");
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(body)
-    .digest("hex");
-  return expected === signature;
+  const { createHmac, timingSafeEqual } = require("crypto") as typeof import("crypto");
+  const expected = createHmac("sha256", secret).update(body).digest("hex");
+
+  // Timing-safe comparison prevents attackers from inferring the correct
+  // signature byte-by-byte via response-time analysis.
+  try {
+    return timingSafeEqual(
+      Buffer.from(expected, "utf8"),
+      Buffer.from(signature, "utf8")
+    );
+  } catch {
+    // timingSafeEqual throws if buffer lengths differ → signature invalid
+    return false;
+  }
 }

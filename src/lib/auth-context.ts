@@ -42,7 +42,7 @@ export async function getMemberContext(
   }
 
   // TODO: Replace this cast with generated Supabase types when available (supabase gen types).
-  const institute = member.institutes as { plan: "pro" | "enterprise" } | null;
+  const institute = (member.institutes as unknown) as { plan: "pro" | "enterprise" } | null;
   const plan = institute?.plan ?? "pro";
 
   return {

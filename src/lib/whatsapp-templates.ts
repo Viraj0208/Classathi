@@ -30,6 +30,12 @@ export const TEMPLATES: Record<string, TemplateDefinition> = {
     body: "Hi {{1}}, upcoming test for {{2}} on {{3}}: {{4}}",
     params: ["parent_name", "subject", "date", "test_details"],
   },
+  timing_change_notification: {
+    category: "utility",
+    language: "en",
+    body: "Hi {{1}}, important update from {{2}} for {{3}}: {{4}}",
+    params: ["parent_name", "institute_name", "date", "details"],
+  },
   payment_confirmation: {
     category: "utility",
     language: "en",
