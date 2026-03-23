@@ -4,7 +4,10 @@ export type ActivityType =
   | "reminder_sent"
   | "payment_received"
   | "manual_payment"
-  | "broadcast_sent";
+  | "broadcast_sent"
+  | "payment_failed"
+  | "payment_refunded"
+  | "payment_expired";
 
 export async function logActivity(
   supabase: SupabaseClient,

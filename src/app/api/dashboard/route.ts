@@ -42,7 +42,7 @@ export async function GET() {
     .from("payments")
     .select("student_id, amount")
     .eq("institute_id", instituteId)
-    .eq("status", "paid")
+    .eq("status", "captured")
     .gte("paid_at", startOfMonth)
     .lte("paid_at", endOfMonth);
   if (ctx.role === "teacher") {

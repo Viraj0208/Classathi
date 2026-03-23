@@ -104,7 +104,7 @@ export const landingContent: LandingContent = {
     pricing: [
         {
             name: "Pro",
-            price: "₹499/month",
+            price: "₹999/month",
             subtitle: "Perfect for solo tutors",
             features: [
                 "Unlimited Students",

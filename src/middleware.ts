@@ -151,6 +151,7 @@ const PROTECTED_PAGE_PREFIXES = [
   "/dashboard",
   "/students",
   "/payments",
+  "/past-papers",
   "/attendance",
   "/batches",
   "/teacher",
@@ -309,6 +310,11 @@ export async function middleware(request: NextRequest) {
   // ── 6. Page Route Auth ─────────────────────────────────────────────
   if (isProtectedPage(pathname) && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // ── 6b. Redirect logged-in users away from auth pages ─────────────
+  if (user && (pathname === "/login" || pathname === "/signup")) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   // ── 7. Teacher → /teacher redirect ─────────────────────────────────

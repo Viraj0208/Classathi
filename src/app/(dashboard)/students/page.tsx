@@ -57,6 +57,7 @@ export default async function StudentsPage() {
           <AddStudentModal
             teachers={members}
             isOwner={ctx.role === "owner"}
+            students={students ?? []}
           />
           <CsvUpload />
           <Link href="/api/students/template" download="students_template.csv">
@@ -85,6 +86,7 @@ export default async function StudentsPage() {
                 <AddStudentModal
                   teachers={members}
                   isOwner={ctx.role === "owner"}
+                  students={students ?? []}
                 />
               </div>
             </div>

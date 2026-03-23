@@ -74,7 +74,7 @@ export default function MarkPaidButton({
         Mark Paid
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent onClose={() => setOpen(false)}>
           <DialogHeader>
             <DialogTitle>Mark paid — {studentName}</DialogTitle>
           </DialogHeader>
@@ -114,6 +114,16 @@ export default function MarkPaidButton({
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
               {loading ? "Saving..." : "Mark paid"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              onClick={() => setOpen(false)}
+              disabled={loading}
+            >
+              Cancel
             </Button>
           </form>
         </DialogContent>

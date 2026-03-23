@@ -9,12 +9,13 @@ import {
   BookOpen,
   ClipboardList,
   CreditCard,
+  FileText,
+  Megaphone,
   Shield,
   LogOut,
   ChevronDown,
   Menu,
   X,
-  Megaphone,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ export function DashboardNav({ role }: { role: string }) {
     { href: dashboardHref, label: "Dashboard", icon: LayoutDashboard },
     { href: "/students", label: "Classes", icon: BookOpen, isClasses: true },
     { href: "/payments", label: "Payments", icon: CreditCard },
+    { href: "/past-papers", label: "Papers", icon: FileText },
     { href: "/broadcast", label: "Broadcast", icon: Megaphone },
     ...(role === "owner" ? [adminItem] : []),
   ];
@@ -117,6 +119,14 @@ export function DashboardNav({ role }: { role: string }) {
             icon={CreditCard}
             label="Payments"
             active={isActive("/payments")}
+          />
+
+          {/* Past Papers */}
+          <NavItem
+            href="/past-papers"
+            icon={FileText}
+            label="Past Papers"
+            active={isActive("/past-papers")}
           />
 
           {/* Broadcast */}

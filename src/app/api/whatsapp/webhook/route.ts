@@ -102,26 +102,28 @@ export async function POST(request: Request) {
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
+      // ── Handle delivery status updates ────────────────────────
       const statuses = change.value?.statuses;
-      if (!statuses) continue;
+      if (statuses) {
+        for (const s of statuses) {
+          const newStatus =
+            s.status === "delivered"
+              ? "delivered"
+              : s.status === "read"
+                ? "read"
+                : s.status === "failed"
+                  ? "failed"
+                  : null;
 
-      for (const s of statuses) {
-        const newStatus =
-          s.status === "delivered"
-            ? "delivered"
-            : s.status === "read"
-              ? "read"
-              : s.status === "failed"
-                ? "failed"
-                : null;
+          if (!newStatus) continue;
 
-        if (!newStatus) continue;
-
-        await supabase
-          .from("whatsapp_logs")
-          .update({ status: newStatus })
-          .eq("wamid", s.id);
+          await supabase
+            .from("whatsapp_logs")
+            .update({ status: newStatus })
+            .eq("wamid", s.id);
+        }
       }
+
     }
   }
 

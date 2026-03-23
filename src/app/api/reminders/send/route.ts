@@ -4,7 +4,7 @@ import { createPaymentLink } from "@/lib/razorpay";
 import { ensureLedgerEntriesForCurrentMonth } from "@/lib/ledger";
 import { logActivity } from "@/lib/activity";
 import { getMemberContext } from "@/lib/auth-context";
-import { sendTemplate, sendTextMessage, formatPhoneForWhatsApp } from "@/lib/whatsapp";
+import { sendTemplate, formatPhoneForWhatsApp } from "@/lib/whatsapp";
 
 export async function POST() {
   const supabase = await createClient();
@@ -38,7 +38,8 @@ export async function POST() {
   let studentsQuery = supabase
     .from("students")
     .select("id, student_name, parent_name, parent_phone, monthly_fee")
-    .eq("institute_id", institute.id);
+    .eq("institute_id", institute.id)
+    .eq("whatsapp_opt_out", false);
   if (ctx.role === "teacher") {
     studentsQuery = studentsQuery.eq("teacher_id", ctx.memberId);
   }
@@ -162,13 +163,6 @@ export async function POST() {
   }
 
   const totalParentsMessaged = results.filter((r) => r.success).length;
-
-  // Send summary to owner via free-form text (inside 24hr window or as a best-effort)
-  if (totalParentsMessaged > 0 && institute.phone) {
-    const ownerPhone = formatPhoneForWhatsApp(institute.phone);
-    const ownerMessage = `Fee reminders sent to ${totalParentsMessaged} parents.\nExpected collection: ₹${Math.round(totalExpectedCollection)}.\nYou will be notified automatically when parents pay.`;
-    await sendTextMessage(ownerPhone, ownerMessage);
-  }
 
   return NextResponse.json({
     sent: totalParentsMessaged,

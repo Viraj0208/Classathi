@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useOptimistic, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,40 @@ function formatDateForInput(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+type OptimisticAction =
+  | { type: "toggle"; studentId: string; status: "present" | "absent" }
+  | { type: "submit_start" }
+  | { type: "reset"; students: StudentRow[] };
+
+type OptimisticState = {
+  statuses: Record<string, "present" | "absent">;
+  submitting: boolean;
+};
+
+function optimisticReducer(
+  state: OptimisticState,
+  action: OptimisticAction
+): OptimisticState {
+  switch (action.type) {
+    case "toggle":
+      return {
+        ...state,
+        statuses: { ...state.statuses, [action.studentId]: action.status },
+      };
+    case "submit_start":
+      return { ...state, submitting: true };
+    case "reset":
+      return {
+        statuses: Object.fromEntries(
+          action.students.map((s) => [s.id, s.attendance_status ?? "present"])
+        ),
+        submitting: false,
+      };
+    default:
+      return state;
+  }
+}
+
 export default function AttendancePage() {
   const searchParams = useSearchParams();
   const initialBatchId = searchParams.get("batch_id") ?? "";
@@ -30,14 +64,20 @@ export default function AttendancePage() {
   const [date, setDate] = useState(today);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [localStatus, setLocalStatus] = useState<Record<string, "present" | "absent">>({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState(initialBatchId);
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+
+  const [isPending, startTransition] = useTransition();
+
+  const [optimistic, addOptimistic] = useOptimistic<OptimisticState, OptimisticAction>(
+    { statuses: {}, submitting: false },
+    optimisticReducer
+  );
 
   // Fetch batches on mount
   useEffect(() => {
@@ -71,22 +111,18 @@ export default function AttendancePage() {
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
         setStudents(data);
-        const initial: Record<string, "present" | "absent"> = {};
-        for (const s of data) {
-          initial[s.id] = s.attendance_status ?? "present";
-        }
-        setLocalStatus(initial);
+        addOptimistic({ type: "reset", students: data });
       } else {
         setStudents([]);
-        setLocalStatus({});
+        addOptimistic({ type: "reset", students: [] });
       }
     } catch {
       setStudents([]);
-      setLocalStatus({});
+      addOptimistic({ type: "reset", students: [] });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addOptimistic]);
 
   useEffect(() => {
     fetchAttendance(date, selectedBatchId);
@@ -95,14 +131,17 @@ export default function AttendancePage() {
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDate(e.target.value);
     setSuccessMessage(null);
+    setErrorMessage(null);
   };
 
   const setStatus = (studentId: string, status: "present" | "absent") => {
-    setLocalStatus((prev) => ({ ...prev, [studentId]: status }));
+    startTransition(() => {
+      addOptimistic({ type: "toggle", studentId, status });
+    });
   };
 
   const hasExistingRecords = students.some((s) => s.attendance_status !== null);
-  const absentCount = Object.values(localStatus).filter((v) => v === "absent").length;
+  const absentCount = Object.values(optimistic.statuses).filter((v) => v === "absent").length;
 
   const handleMarkAttendance = () => {
     if (absentCount > 0) {
@@ -114,8 +153,14 @@ export default function AttendancePage() {
 
   const submitAttendance = async () => {
     setShowConfirmModal(false);
-    setSubmitting(true);
     setSuccessMessage(null);
+    setErrorMessage(null);
+
+    // Optimistically show submitting state
+    startTransition(() => {
+      addOptimistic({ type: "submit_start" });
+    });
+
     try {
       const res = await fetch("/api/attendance", {
         method: "POST",
@@ -125,7 +170,7 @@ export default function AttendancePage() {
           batch_id: selectedBatchId || undefined,
           attendance: students.map((s) => ({
             student_id: s.id,
-            status: localStatus[s.id] ?? "present",
+            status: optimistic.statuses[s.id] ?? "present",
           })),
         }),
       });
@@ -134,16 +179,21 @@ export default function AttendancePage() {
         setSuccessMessage(
           `Attendance saved. ${data.absentMessagesSent ?? 0} absence alerts sent.`
         );
+        // Refetch to get confirmed server state
         fetchAttendance(date, selectedBatchId);
       } else {
-        setSuccessMessage(data.error || "Something went wrong");
+        // Server rejected — rollback by refetching
+        setErrorMessage(data.error || "Something went wrong");
+        fetchAttendance(date, selectedBatchId);
       }
     } catch {
-      setSuccessMessage("Failed to save attendance");
-    } finally {
-      setSubmitting(false);
+      // Network failure — rollback by refetching
+      setErrorMessage("Failed to save attendance. Please check your connection and try again.");
+      fetchAttendance(date, selectedBatchId);
     }
   };
+
+  const isSubmitting = optimistic.submitting || isPending;
 
   return (
     <div className="space-y-6">
@@ -180,6 +230,7 @@ export default function AttendancePage() {
             onClick={() => {
               setSelectedBatchId("");
               setSuccessMessage(null);
+              setErrorMessage(null);
             }}
           >
             All Students
@@ -192,6 +243,7 @@ export default function AttendancePage() {
               onClick={() => {
                 setSelectedBatchId(b.id);
                 setSuccessMessage(null);
+                setErrorMessage(null);
               }}
               className={cn(
                 selectedBatchId === b.id &&
@@ -218,14 +270,17 @@ export default function AttendancePage() {
 
       {successMessage && (
         <div
-          className={cn(
-            "rounded-xl border p-4",
-            successMessage.startsWith("Attendance saved")
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200"
-              : "border-destructive/50 bg-destructive/10 text-destructive"
-          )}
+          className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200"
         >
           {successMessage}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div
+          className="rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-destructive"
+        >
+          {errorMessage}
         </div>
       )}
 
@@ -266,7 +321,7 @@ export default function AttendancePage() {
           ) : (
             <div className="space-y-2">
               {students.map((s) => {
-                const status = localStatus[s.id] ?? "present";
+                const status = optimistic.statuses[s.id] ?? "present";
                 return (
                   <div
                     key={s.id}
@@ -314,9 +369,9 @@ export default function AttendancePage() {
               <Button
                 size="lg"
                 onClick={handleMarkAttendance}
-                disabled={submitting}
+                disabled={isSubmitting}
               >
-                {submitting ? "Saving..." : "Mark Attendance"}
+                {isSubmitting ? "Saving..." : "Mark Attendance"}
               </Button>
             </div>
           )}
@@ -337,8 +392,8 @@ export default function AttendancePage() {
               <Button variant="outline" onClick={() => setShowConfirmModal(false)}>
                 Cancel
               </Button>
-              <Button onClick={submitAttendance} disabled={submitting}>
-                {submitting ? "Saving..." : "Confirm"}
+              <Button onClick={submitAttendance} disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Confirm"}
               </Button>
             </CardContent>
           </Card>

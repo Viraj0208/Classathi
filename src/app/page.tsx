@@ -1,7 +1,6 @@
 import Navbar from '@/components/Navbar';
 import HeroVideoScroll from '@/components/HeroVideoScroll';
 import FeatureGrid from '@/components/FeatureGrid';
-import StatsBar from '@/components/StatsBar';
 import TestimonialCarousel from '@/components/TestimonialCarousel';
 import PricingSection from '@/components/PricingSection';
 import FAQSection from '@/components/FAQSection';
@@ -19,7 +18,6 @@ export default function Home() {
       {/* Standard scroll content sections follow the canvas section */}
       <div className="relative z-20 bg-navy-900 flex flex-col pt-10">
         <FeatureGrid />
-        <StatsBar />
         <TestimonialCarousel />
         <PricingSection />
         <FAQSection />

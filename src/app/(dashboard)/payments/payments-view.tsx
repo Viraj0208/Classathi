@@ -36,8 +36,10 @@ function formatDate(d: string | null) {
 
 const tabs = [
   { label: "All", value: "all" },
-  { label: "Paid", value: "paid" },
+  { label: "Captured", value: "captured" },
   { label: "Pending", value: "pending" },
+  { label: "Failed", value: "failed" },
+  { label: "Refunded", value: "refunded" },
 ] as const;
 
 export default function PaymentsView({

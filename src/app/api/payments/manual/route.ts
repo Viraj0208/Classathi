@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       student_id: student_id,
       amount,
       payment_link_id: null,
-      status: "paid",
+      status: "captured",
       paid_at: new Date().toISOString(),
       ledger_id: ledger.id,
       source: "manual",

@@ -105,7 +105,7 @@ export const pricing: PricingTier[] = [
   {
     id: "pro",
     name: "Pro",
-    price: "₹499",
+    price: "₹999",
     period: "/month",
     description: "Perfect for individual tutors",
     features: [
@@ -122,7 +122,7 @@ export const pricing: PricingTier[] = [
   {
     id: "enterprise",
     name: "Enterprise",
-    price: "₹1,999",
+    price: "₹2,999",
     period: "/month",
     description: "For coaching institutes with multiple teachers",
     features: [
@@ -162,6 +162,6 @@ export const faqItems = [
   },
   {
     question: "Is there a free trial?",
-    answer: "Yes — 14 days, full access, no credit card required. Start managing your institute today.",
+    answer: "Yes — 7 days, full access, no credit card required. Start managing your institute today.",
   },
 ];

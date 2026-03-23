@@ -57,6 +57,28 @@ export async function POST(request: Request) {
 
   const dueDay = Math.min(31, Math.max(1, Number(fee_due_day) || 1));
 
+  // Duplicate check (skip when force flag is set)
+  if (!body.force) {
+    const cleanPhone = String(parent_phone).replace(/\D/g, "").slice(-10);
+    const { data: existing } = await supabase
+      .from("students")
+      .select("id")
+      .eq("institute_id", ctx.instituteId)
+      .ilike("student_name", student_name.trim())
+      .eq("parent_phone", cleanPhone)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return NextResponse.json(
+        {
+          error: "duplicate",
+          message: `A student named "${student_name.trim()}" with this phone already exists. Add anyway?`,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   const { data, error } = await supabase
     .from("students")
     .insert({
@@ -75,14 +97,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Auto-create student_teachers row for the creating teacher
-  await supabase.from("student_teachers").insert({
-    student_id: data.id,
-    teacher_id: ctx.memberId,
-    institute_id: ctx.instituteId,
-    monthly_fee: Number(monthly_fee) || 0,
-    fee_due_day: dueDay,
-  });
+  // Auto-create student_teachers row when a teacher creates a student
+  if (ctx.role === "teacher") {
+    await supabase.from("student_teachers").insert({
+      student_id: data.id,
+      teacher_id: ctx.memberId,
+      institute_id: ctx.instituteId,
+      monthly_fee: Number(monthly_fee) || 0,
+      fee_due_day: dueDay,
+    });
+  }
 
   return NextResponse.json(data);
 }

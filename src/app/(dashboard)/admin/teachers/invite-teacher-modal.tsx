@@ -18,6 +18,11 @@ export default function InviteTeacherModal() {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  function handleClose() {
+    setOpen(false);
+    setError("");
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -52,8 +57,8 @@ export default function InviteTeacherModal() {
       <Button size="lg" onClick={() => setOpen(true)}>
         Invite teacher
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent onClose={handleClose}>
           <DialogHeader>
             <DialogTitle>Invite teacher</DialogTitle>
           </DialogHeader>
@@ -81,9 +86,21 @@ export default function InviteTeacherModal() {
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? "Sending invite..." : "Send invite"}
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? "Sending invite..." : "Send invite"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                className="w-full"
+                onClick={handleClose}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

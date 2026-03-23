@@ -34,7 +34,7 @@ export default async function PaymentsPage() {
   }
   const { data: payments } = await query;
 
-  const paidPayments = (payments ?? []).filter((p) => p.status === "paid");
+  const paidPayments = (payments ?? []).filter((p) => p.status === "captured");
   const totalCollected = paidPayments.reduce(
     (sum, p) => sum + Number(p.amount ?? 0),
     0

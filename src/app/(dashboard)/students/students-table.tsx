@@ -219,19 +219,22 @@ export default function StudentsTable({
             ) : (
               filtered.map((s, i) => {
                 const assignments = teacherMap.get(s.id) ?? [];
-                // For teachers, show their specific fee; for owners, show student's base fee
+                // For teachers, show their specific fee; for owners, show total of all teacher fees
                 const myAssignment =
                   role === "teacher"
                     ? assignments.find((a) => a.teacher_id === currentMemberId)
                     : null;
-                const displayFee =
+                const assignmentFee =
                   myAssignment != null
                     ? myAssignment.monthly_fee
-                    : Number(s.monthly_fee);
+                    : assignments.reduce((sum, a) => sum + Number(a.monthly_fee), 0);
+                const displayFee = assignmentFee > 0 ? assignmentFee : Number(s.monthly_fee) || 0;
                 const displayDueDay =
                   myAssignment != null
                     ? myAssignment.fee_due_day
-                    : s.fee_due_day;
+                    : assignments.length > 0
+                      ? assignments[0].fee_due_day
+                      : 1;
 
                 return (
                   <TableRow
@@ -245,17 +248,22 @@ export default function StudentsTable({
                     <TableCell>{s.parent_phone}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {assignments.map((a) => (
-                          <span
-                            key={a.id}
-                            className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300"
-                          >
-                            {memberNameMap.get(a.teacher_id) ?? "Teacher"}
-                            <span className="text-blue-500 dark:text-blue-400">
-                              {formatAmount(a.monthly_fee)}
+                        {assignments.map((a) => {
+                          const badgeFee = Number(a.monthly_fee) > 0
+                            ? a.monthly_fee
+                            : Math.floor((Number(s.monthly_fee) || 0) / (assignments.length || 1));
+                          return (
+                            <span
+                              key={a.id}
+                              className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300"
+                            >
+                              {memberNameMap.get(a.teacher_id) ?? "Teacher"}
+                              <span className="text-blue-500 dark:text-blue-400">
+                                {formatAmount(badgeFee)}
+                              </span>
                             </span>
-                          </span>
-                        ))}
+                          );
+                        })}
                         {role === "owner" && (
                           <button
                             onClick={() => openAssign(s.id)}
@@ -310,7 +318,7 @@ export default function StudentsTable({
 
       {/* Assign Teacher Modal (owner only) */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent>
+        <DialogContent onClose={() => setAssignOpen(false)}>
           <DialogHeader>
             <DialogTitle>Assign Teacher</DialogTitle>
           </DialogHeader>
@@ -364,13 +372,23 @@ export default function StudentsTable({
             >
               {assignLoading ? "Assigning..." : "Assign Teacher"}
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              onClick={() => setAssignOpen(false)}
+              disabled={assignLoading}
+            >
+              Cancel
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Edit Fee Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent onClose={() => setEditOpen(false)}>
           <DialogHeader>
             <DialogTitle>Edit Fee</DialogTitle>
           </DialogHeader>
@@ -406,6 +424,16 @@ export default function StudentsTable({
               disabled={editLoading}
             >
               {editLoading ? "Saving..." : "Save"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              onClick={() => setEditOpen(false)}
+              disabled={editLoading}
+            >
+              Cancel
             </Button>
           </form>
         </DialogContent>

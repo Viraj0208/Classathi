@@ -68,6 +68,7 @@ export async function POST(request: Request) {
     .from("students")
     .select("id, student_name, parent_name, parent_phone")
     .eq("institute_id", institute.id)
+    .eq("whatsapp_opt_out", false)
     .in("id", ids);
   if (ctx.role === "teacher") {
     studentsQuery = studentsQuery.eq("teacher_id", ctx.memberId);

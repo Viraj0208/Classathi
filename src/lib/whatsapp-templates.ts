@@ -42,6 +42,12 @@ export const TEMPLATES: Record<string, TemplateDefinition> = {
     body: "Hi {{1}}, payment of ₹{{2}} received for {{3}}'s tuition. Thank you!",
     params: ["parent_name", "amount", "student_name"],
   },
+  marks_notification: {
+    category: "utility",
+    language: "en",
+    body: "Hello {{1}}, {{2}} scored {{3}} marks in {{4}} ({{5}}).",
+    params: ["parent_name", "student_name", "marks", "subject", "test_name"],
+  },
 };
 
 type TemplateComponent = {

@@ -134,7 +134,7 @@ export async function POST(request: Request) {
           student_id: studentId,
           amount: Number(batch.session_fee),
           payment_link_id: null,
-          status: "paid",
+          status: "captured",
           paid_at: new Date().toISOString(),
           source: "session",
         });
@@ -165,7 +165,8 @@ export async function POST(request: Request) {
       .from("students")
       .select("id, student_name, parent_name, parent_phone")
       .in("id", absentStudentIds)
-      .eq("institute_id", ctx.instituteId);
+      .eq("institute_id", ctx.instituteId)
+      .eq("whatsapp_opt_out", false);
     if (ctx.role === "teacher") {
       absentStudentsQuery = absentStudentsQuery.eq(
         "teacher_id",

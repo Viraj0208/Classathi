@@ -15,7 +15,7 @@ export function Pricing() {
           <div className="glass-card p-8 flex-1 flex flex-col">
             <h3 className="text-2xl font-bold text-white">Pro</h3>
             <div className="mt-4 mb-2">
-                <span className="text-4xl font-bold text-gold-300">₹499</span>
+                <span className="text-4xl font-bold text-gold-300">₹999</span>
                 <span className="text-white/50 text-lg">/month</span>
             </div>
             <p className="text-white/50 text-sm mb-6">Perfect for solo tutors</p>
@@ -40,7 +40,7 @@ export function Pricing() {
             </div>
             <h3 className="text-2xl font-bold text-white">Enterprise</h3>
             <div className="mt-4 mb-2">
-                <span className="text-4xl font-bold text-gold-300">₹1,499</span>
+                <span className="text-4xl font-bold text-gold-300">₹2,999</span>
                 <span className="text-white/50 text-lg">/month</span>
             </div>
             <p className="text-white/50 text-sm mb-6">For coaching institutes with multiple teachers</p>

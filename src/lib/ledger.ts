@@ -81,7 +81,12 @@ export async function ensureLedgerEntriesForCurrentMonth(
     status: "unpaid" as LedgerStatus,
   }));
 
-  await supabase.from("fee_ledger").insert(rows);
+  // Use upsert with ignoreDuplicates to prevent race conditions
+  // if two requests try to create ledger entries simultaneously
+  await supabase.from("fee_ledger").upsert(rows, {
+    onConflict: "institute_id,student_id,teacher_id,month",
+    ignoreDuplicates: true,
+  });
 }
 
 export async function getCurrentMonthLedger(
@@ -125,19 +130,28 @@ export async function getOrCreateCurrentMonthLedger(
     )
       .toISOString()
       .slice(0, 10);
+    // Use upsert to handle race conditions where another request
+    // may have created the entry between our SELECT and INSERT
     const { data } = await supabase
       .from("fee_ledger")
-      .insert({
-        institute_id: instituteId,
-        student_id: studentId,
-        month,
-        amount_due: monthlyFee,
-        amount_paid: 0,
-        status: "unpaid",
-      })
+      .upsert(
+        {
+          institute_id: instituteId,
+          student_id: studentId,
+          month,
+          amount_due: monthlyFee,
+          amount_paid: 0,
+          status: "unpaid",
+        },
+        {
+          onConflict: "institute_id,student_id,teacher_id,month",
+          ignoreDuplicates: true,
+        }
+      )
       .select()
       .single();
-    ledger = data;
+    // If upsert returned nothing (duplicate ignored), re-fetch
+    ledger = data ?? await getCurrentMonthLedger(supabase, instituteId, studentId);
   }
   return ledger;
 }

@@ -4,11 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Sparkles } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function Navbar() {
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,6 +18,12 @@ export default function Navbar() {
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user);
+    });
   }, []);
 
   const navLinks = [
@@ -52,18 +60,29 @@ export default function Navbar() {
               {link.name}
             </a>
           ))}
-          <button
-            onClick={() => router.push('/login')}
-            className="text-white/70 hover:text-white transition-colors text-sm font-medium"
-          >
-            Log in
-          </button>
-          <button
-            onClick={() => router.push('/signup')}
-            className="bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 px-6 py-2.5 rounded-full font-bold text-sm hover:shadow-[0_0_20px_rgba(255,183,77,0.4)] transition-all"
-          >
-            Start Free Trial
-          </button>
+          {isLoggedIn ? (
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 px-6 py-2.5 rounded-full font-bold text-sm hover:shadow-[0_0_20px_rgba(255,183,77,0.4)] transition-all"
+            >
+              Dashboard
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => router.push('/login')}
+                className="text-white/70 hover:text-white transition-colors text-sm font-medium"
+              >
+                Log in
+              </button>
+              <button
+                onClick={() => router.push('/signup')}
+                className="bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 px-6 py-2.5 rounded-full font-bold text-sm hover:shadow-[0_0_20px_rgba(255,183,77,0.4)] transition-all"
+              >
+                Start Free Trial
+              </button>
+            </>
+          )}
         </div>
 
         {/* Mobile Toggle */}
@@ -95,18 +114,29 @@ export default function Navbar() {
                   {link.name}
                 </a>
               ))}
-              <button
-                onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
-                className="text-white border border-white/20 px-6 py-3 rounded-full font-bold w-full mt-4"
-              >
-                Log in
-              </button>
-              <button
-                onClick={() => { setMobileMenuOpen(false); router.push('/signup'); }}
-                className="bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 px-6 py-3 rounded-full font-bold w-full"
-              >
-                Start Free Trial
-              </button>
+              {isLoggedIn ? (
+                <button
+                  onClick={() => { setMobileMenuOpen(false); router.push('/dashboard'); }}
+                  className="bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 px-6 py-3 rounded-full font-bold w-full mt-4"
+                >
+                  Dashboard
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
+                    className="text-white border border-white/20 px-6 py-3 rounded-full font-bold w-full mt-4"
+                  >
+                    Log in
+                  </button>
+                  <button
+                    onClick={() => { setMobileMenuOpen(false); router.push('/signup'); }}
+                    className="bg-gradient-to-r from-gold-500 to-gold-400 text-navy-900 px-6 py-3 rounded-full font-bold w-full"
+                  >
+                    Start Free Trial
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         )}

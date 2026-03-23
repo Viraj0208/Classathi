@@ -93,7 +93,7 @@ export function CTASection() {
                     transition={{ duration: 0.6, delay: 0.4 }}
                     className="text-center text-sm font-medium text-slate-500 dark:text-slate-400"
                 >
-                    No credit card required &bull; 14-day free trial &bull; Cancel anytime
+                    No credit card required &bull; 7-day free trial &bull; Cancel anytime
                 </motion.div>
             </div>
         </section>

@@ -30,6 +30,7 @@ export type Student = {
   parent_phone: string;
   monthly_fee: number;
   fee_due_day: number;
+  whatsapp_opt_out: boolean;
   created_at: string;
 };
 
@@ -40,7 +41,7 @@ export type Payment = {
   student_id: string;
   amount: number;
   payment_link_id: string | null;
-  status: "pending" | "paid";
+  status: "pending" | "captured" | "failed" | "refunded" | "expired";
   paid_at: string | null;
   created_at: string;
 };
